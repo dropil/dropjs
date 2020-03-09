@@ -1,0 +1,25 @@
+{
+  "name": "@dropilcoin/dropjs",
+  "version": "1.0.0",
+  "description": "An open source JavaScript library for use with Dropil Chain.",
+  "main": "./src/drop.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dropil/dropjs.git"
+  },
+  "author": "Dropil <info@dropil.com> (https://dropil.com)",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/dropil/dropjs/issues"
+  },
+  "homepage": "https://github.com/dropil/dropjs#readme",
+  "dependencies": {
+    "bech32": "^1.1.3",
+    "bip32": "^1.0.2",
+    "bip39": "^2.5.0",
+    "bitcoinjs-lib": "^4.0.2",
+    "crypto-js": "^4.0.0",
+    "node-fetch": "^2.6.0",
+    "secp256k1": "^4.0.0"
+  }
+}
