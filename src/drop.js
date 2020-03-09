@@ -3,8 +3,8 @@ const bip39 = require('bip39')
 const bip32 = require('bip32')
 const bech32 = require('bech32')
 const secp256k1 = require('secp256k1')
-const bitcoinjs = require('bitcoinjs-lib')
 const crypto = require('crypto')
+const bitcoinjs = require('bitcoinjs-lib')
 const CryptoJS = require("crypto-js")
 
 const DROP_PATH = "m/44'/118'/0'/0/0"
@@ -235,9 +235,10 @@ Drop.prototype.broadcast = async function(signedTx) {
 /** 
  * creates a send transaction & signs offline using provided mnemonic and then 
  * broadcasts to LCD API (this.url);
- * optionally pass in accountNumber and sequence for manual override 
+ * optionally pass in accountNumber and sequence for manual override;
+ * optionally pass false into broadcast param to return the signedTx and NOT broadcast
  */
-Drop.prototype.send = async function(mnemonic, toAddress, amount, memo = '', accountNumber = null, sequence = null) {
+Drop.prototype.send = async function(mnemonic, toAddress, amount, memo = '', accountNumber = null, sequence = null, broadcast = true) {
   let { address, privateKey } = await this.getKeys(mnemonic)  
 
   let data = { accountNumber, sequence }
@@ -257,15 +258,17 @@ Drop.prototype.send = async function(mnemonic, toAddress, amount, memo = '', acc
   let stdMsg = this.buildStdMsg(TRANS_TYPE.MSG_SEND, params, data, memo)
   const signedTx = sign(stdMsg, privateKey)
   
+  if (!broadcast) return signedTx
   return await this.broadcast(signedTx)
 }
 
 /** 
  * creates a delegate transaction & signs offline using provided mnemonic and then 
  * broadcasts to LCD API (this.url);
- * optionally pass in accountNumber and sequence for manual override 
+ * optionally pass in accountNumber and sequence for manual override;
+ * optionally pass false into broadcast param to return the signedTx and NOT broadcast
  */
-Drop.prototype.delegate = async function(mnemonic, validatorAddress, amount, memo = '', accountNumber = null, sequence = null) {
+Drop.prototype.delegate = async function(mnemonic, validatorAddress, amount, memo = '', accountNumber = null, sequence = null, broadcast = true) {
   let { address, privateKey } = await this.getKeys(menmonic)
 
   let data = { accountNumber, sequence }
@@ -283,15 +286,17 @@ Drop.prototype.delegate = async function(mnemonic, validatorAddress, amount, mem
   let stdMsg = this.buildStdMsg(TRANS_TYPE.MSG_DELEGATE, params, data, memo)
   const signedTx = sign(stdMsg, privateKey)
 
+  if (!broadcast) return signedTx
   return await this.broadcast(signedTx)
 }
 
 /** 
  * creates an undelegate transaction & signs offline using provided mnemonic and then 
  * broadcasts to LCD API (this.url);
- * optionally pass in accountNumber and sequence for manual override 
+ * optionally pass in accountNumber and sequence for manual override;
+ * optionally pass false into broadcast param to return the signedTx and NOT broadcast
  */
-Drop.prototype.undelegate = async function(mnemonic, validatorAddress, amount, memo = '', accountNumber = null, sequence = null) {
+Drop.prototype.undelegate = async function(mnemonic, validatorAddress, amount, memo = '', accountNumber = null, sequence = null, broadcast = true) {
   let { address, privateKey } = await this.getKeys(menmonic)
 
   let data = { accountNumber, sequence }
@@ -309,6 +314,7 @@ Drop.prototype.undelegate = async function(mnemonic, validatorAddress, amount, m
   let stdMsg = this.buildStdMsg(TRANS_TYPE.MSG_UNDELEGATE, params, data, memo)
   const signedTx = sign(stdMsg, privateKey)
 
+  if (!broadcast) return signedTx
   return await this.broadcast(signedTx)
 }
 
