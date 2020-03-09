@@ -61,8 +61,8 @@ let wallet = await dropjs.generateWallet()
 Returns:
 ``` json
 {
-  address: String,
-  mnemonic: String
+  "address": "String",
+  "mnemonic": "String"
 }
 ```
 
