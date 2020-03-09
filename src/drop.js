@@ -4,6 +4,7 @@ const bip32 = require('bip32')
 const bech32 = require('bech32')
 const secp256k1 = require('secp256k1')
 const bitcoinjs = require('bitcoinjs-lib')
+const crypto = require('crypto')
 const CryptoJS = require("crypto-js")
 
 const DROP_PATH = "m/44'/118'/0'/0/0"
