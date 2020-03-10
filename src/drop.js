@@ -127,7 +127,8 @@ Drop.prototype.getKeys = async function(mnemonic) {
 /** returns address for provided mnemonic */
 Drop.prototype.getAddress = async function(mnemonic) {
   if (typeof mnemonic !== "string") throw new Error("mnemonic expects a string")
-  
+  if (mnemonic.split(' ').length !== 24) throw new Error('incorrect mnemonic length, must be 24 words')
+
 	const seed = await bip39.mnemonicToSeed(mnemonic)
 	const node = bip32.fromSeed(seed)
 	const child = node.derivePath(this.path)
@@ -140,7 +141,8 @@ Drop.prototype.getAddress = async function(mnemonic) {
 /** returns privateKey for provided mnemonic */
 Drop.prototype.getPrivateKey = async function(mnemonic) {
   if (typeof mnemonic !== "string") throw new Error("mnemonic expects a string")
-  
+  if (mnemonic.split(' ').length !== 24) throw new Error('incorrect mnemonic length, must be 24 words')
+
 	const seed = await bip39.mnemonicToSeed(mnemonic)
 	const node = bip32.fromSeed(seed)
 	const child = node.derivePath(this.path)
