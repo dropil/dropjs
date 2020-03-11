@@ -9,7 +9,7 @@ const CryptoJS = require("crypto-js")
 
 const DROP_PATH = "m/44'/118'/0'/0/0"
 const DROP_BECH32_PREFIX = 'drop'
-const TRANS_TYPE = {
+const MSG_TYPE = {
   MSG_SEND: 'cosmos-sdk/MsgSend',
   MSG_MULTI_SEND: 'cosmos-sdk/MsgMultiSend',
   MSG_CREATE_VALIDATOR: 'cosmos-sdk/MsgCreateValidator',
@@ -90,38 +90,68 @@ function sortObject(obj) {
 }
 
 /** returns response from LCD API (this.url) on /auth/accounts/{address} endpoint */
-Drop.prototype.getAccount = function(address) {
-  return fetch(this.url + "/auth/accounts/" + address)
-  .then(response => response.json())
+Drop.prototype.getAccount = async function(address) {
+  const response = await fetch(this.url + "/auth/accounts/" + address)
+  return await response.json()
 }
 
 /** returns { accountNumber, sequence } for provided mnemonic */
-Drop.prototype.getAccountData = async function(mnemonic) {
-  let address = await this.getAddress(mnemonic)
-  return this.getAccount(address)
-  .then(data => ({ accountNumber: String(data.result.value.account_number), sequence: String(data.result.value.sequence) }))
+Drop.prototype.getAccountData = async function(mnemonic = null, address = null) {
+  if (!mnemonic && !address) throw new Error('either mnemonic or address must be provided')
+  
+  // get address via mnemonic if not already provided
+  if (!address) address = await this.getAddress(mnemonic)
+
+  let account = await this.getAccount(address)
+
+  return { 
+    accountNumber: String(account.result.value.account_number), 
+    sequence: String(account.result.value.sequence) 
+  }
 }
 
 /** returns String(accountNumber) from provided mnemonic */
-Drop.prototype.getAccountNumber = async function(mnemonic) {
-  let address = await this.getAddress(mnemonic)
-  return this.getAccount(address)
-  .then(data => String(data.result.value.account_number))
+Drop.prototype.getAccountNumber = async function(mnemonic = null, address = null) {
+  if (!mnemonic && !address) throw new Error('either mnemonic or address must be provided')
+  
+  // get address via mnemonic if not already provided
+  if (!address) address = await this.getAddress(mnemonic)
+
+  let account = await this.getAccount(address)
+
+  return account.result.value.account_number
 }
 
 /** returns String(sequence) from provided mnemonic */
-Drop.prototype.getAccountSequence = async function(mnemonic) {
-  let address = await this.getAddress(mnemonic)  
-  return this.getAccount(address)
-  .then(data => String(data.result.value.sequence))
+Drop.prototype.getAccountSequence = async function(mnemonic = null, address = null) {
+  if (!mnemonic && !address) throw new Error('either mnemonic or address must be provided')
+  
+  // get address via mnemonic if not already provided
+  if (!address) address = await this.getAddress(mnemonic)
+
+  let account = await this.getAccount(address)
+  
+  return account.result.value.sequence
 }
 
 /** returns { address, privateKey } based on provided mnemonic */
 Drop.prototype.getKeys = async function(mnemonic) {
-  return {
-    address: await this.getAddress(mnemonic),
-    privateKey: await this.getPrivateKey(mnemonic)
-  }
+  if (typeof mnemonic !== "string") throw new Error("mnemonic expects a string")
+  if (mnemonic.split(' ').length !== 24) throw new Error('incorrect mnemonic length, must be 24 words')
+
+	const seed = await bip39.mnemonicToSeed(mnemonic)
+	const bipInterface = bip32.fromSeed(seed)
+	const bipPath = bipInterface.derivePath(this.path)
+  
+  // address
+  const words = bech32.toWords(bipPath.identifier)
+  const address = bech32.encode(this.bech32MainPrefix, words)
+
+  // private key
+  const ecpair = bitcoinjs.ECPair.fromPrivateKey(bipPath.privateKey, { compressed : false })
+  const privateKey = ecpair.privateKey  
+
+  return { address, privateKey }
 }
 
 /** returns address for provided mnemonic */
@@ -130,9 +160,9 @@ Drop.prototype.getAddress = async function(mnemonic) {
   if (mnemonic.split(' ').length !== 24) throw new Error('incorrect mnemonic length, must be 24 words')
 
 	const seed = await bip39.mnemonicToSeed(mnemonic)
-	const node = bip32.fromSeed(seed)
-	const child = node.derivePath(this.path)
-  const words = bech32.toWords(child.identifier)
+	const bipInterface = bip32.fromSeed(seed)
+	const bipPath = bipInterface.derivePath(this.path)
+  const words = bech32.toWords(bipPath.identifier)
   const address = bech32.encode(this.bech32MainPrefix, words)
 
 	return address
@@ -144,15 +174,15 @@ Drop.prototype.getPrivateKey = async function(mnemonic) {
   if (mnemonic.split(' ').length !== 24) throw new Error('incorrect mnemonic length, must be 24 words')
 
 	const seed = await bip39.mnemonicToSeed(mnemonic)
-	const node = bip32.fromSeed(seed)
-	const child = node.derivePath(this.path)
-  const ecpair = bitcoinjs.ECPair.fromPrivateKey(child.privateKey, { compressed : false })
+	const bipInterface = bip32.fromSeed(seed)
+	const bipPath = bipInterface.derivePath(this.path)
+  const ecpair = bitcoinjs.ECPair.fromPrivateKey(bipPath.privateKey, { compressed : false })
   
 	return ecpair.privateKey
 }
 
 /** returns udrop balance of provided address; set convert to true to return in DROP decimal format */
-Drop.prototype.getBalance = async function(address, convert = false) {
+Drop.prototype.getAvailableBalance = async function(address, convert = false) {
   let data = await this.getAccount(address)
 
   // return 0 if error or udrop does not exist
@@ -172,19 +202,30 @@ function newStdMsg(input) {
   }
 }
 
-Drop.prototype.buildStdMsg = function(type, params, data, memo = '') {
+Drop.prototype.buildStdMsg = function(type, valueParams, accountNumber, sequence, memo = '', fee = 1000000, gas = 200000) {
   return newStdMsg({
     msgs: [
       {
         type,
-        value: { ...params }
+        value: { ...valueParams }
       }
     ],
     chain_id: this.chainId,
-    fee: { amount: [ { amount: String(1000000), denom: "udrop" } ], gas: String(200000) },
+    fee: { amount: [ { amount: String(fee), denom: "udrop" } ], gas: String(gas) },
     memo,
-    account_number: String(data.accountNumber),
-    sequence: String(data.sequence)
+    account_number: String(accountNumber),
+    sequence: String(sequence)
+  })
+}
+
+Drop.prototype.buildMultiMsg = function(msgs, accountNumber, sequence, memo = '', fee = 1000000, gas = 200000) {
+  return newStdMsg({
+    msgs,
+    chain_id: this.chainId,
+    fee: { amount: [ { amount: String(fee), denom: "udrop" } ], gas: String(gas) },
+    memo,
+    account_number: String(accountNumber),
+    sequence: String(sequence)
   })
 }
 
@@ -234,34 +275,62 @@ Drop.prototype.broadcast = async function(signedTx) {
   return await response.json()
 }
 
+// this model shows the potential keys and their expected types inside the params for all of the available transactions
+// note: not all of these parameters will be used for each transaction
+const PARAM_MODEL = {
+  mnemonic: 'String',
+  destination: 'String',
+  validatorSourceAddress: 'String',
+  validatorDestAddress: 'String',
+  amount: 'String || Number',
+  memo: 'String',
+  accountNumber: 'String || Number',
+  sequence: 'String || Number',
+  broadcast: 'Boolean',
+  fee: 'String || Number',
+  gas: 'String || Number'
+}
+
+// this model contains the default values for the required parameters of each transaction
+const OPTIONAL_PARAM_DEFAULTS = {
+  memo: '',
+  broadcast: true,
+  fee: '1000000',
+  gas: '200000'
+}
+
+Drop.prototype.buildParams = async function(params) {
+  params = { ...OPTIONAL_PARAM_DEFAULTS, ...params }
+  if (!params.address || !params.privateKey) params = { ...params, ...(await this.getKeys(params.mnemonic)) }
+  if (!params.accountNumber || !params.sequence) params = { ...params, ...(await this.getAccountData(params.mnemonic)) }
+
+  return params
+}
+
 /** 
  * creates a send transaction & signs offline using provided mnemonic and then 
  * broadcasts to LCD API (this.url);
  * optionally pass in accountNumber and sequence for manual override;
  * optionally pass false into broadcast param to return the signedTx and NOT broadcast
  */
-Drop.prototype.send = async function(mnemonic, toAddress, amount, memo = '', accountNumber = null, sequence = null, broadcast = true) {
-  let { address, privateKey } = await this.getKeys(mnemonic)  
+Drop.prototype.send = async function(params) {
+  params = await this.buildParams(params)
 
-  let data = { accountNumber, sequence }
-  if (!accountNumber || !sequence) data = await this.getAccountData(mnemonic)
-  
-  let params = {
+  let valueParams = {
     amount: [
       {
-        amount: String(amount),
+        amount: String(params.amount),
         denom: "udrop"
       }
     ],
-    from_address: address,
-    to_address: toAddress
+    from_address: params.address,
+    to_address: params.destination
   }
 
-  let stdMsg = this.buildStdMsg(TRANS_TYPE.MSG_SEND, params, data, memo)
-  const signedTx = sign(stdMsg, privateKey)
-  
-  if (!broadcast) return signedTx
-  return await this.broadcast(signedTx)
+  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_SEND, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  const signedTx = sign(stdMsg, params.privateKey)
+    
+  return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
 /** 
@@ -270,26 +339,22 @@ Drop.prototype.send = async function(mnemonic, toAddress, amount, memo = '', acc
  * optionally pass in accountNumber and sequence for manual override;
  * optionally pass false into broadcast param to return the signedTx and NOT broadcast
  */
-Drop.prototype.delegate = async function(mnemonic, validatorAddress, amount, memo = '', accountNumber = null, sequence = null, broadcast = true) {
-  let { address, privateKey } = await this.getKeys(menmonic)
-
-  let data = { accountNumber, sequence }
-  if (!accountNumber || !sequence) data = await this.getAccountData(mnemonic)
+Drop.prototype.delegate = async function(params) {
+  params = await this.buildParams(params)
   
-  let params = {
+  let valueParams = {
     amount: {
-      amount: String(amount),
+      amount: String(params.amount),
       denom: "udrop"
     },
-    delegator_address: address,
-    validator_address: validatorAddress
+    delegator_address: params.address,
+    validator_address: params.validatorAddress
   }
 
-  let stdMsg = this.buildStdMsg(TRANS_TYPE.MSG_DELEGATE, params, data, memo)
-  const signedTx = sign(stdMsg, privateKey)
+  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_DELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  const signedTx = sign(stdMsg, params.privateKey)
 
-  if (!broadcast) return signedTx
-  return await this.broadcast(signedTx)
+  return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
 /** 
@@ -298,26 +363,87 @@ Drop.prototype.delegate = async function(mnemonic, validatorAddress, amount, mem
  * optionally pass in accountNumber and sequence for manual override;
  * optionally pass false into broadcast param to return the signedTx and NOT broadcast
  */
-Drop.prototype.undelegate = async function(mnemonic, validatorAddress, amount, memo = '', accountNumber = null, sequence = null, broadcast = true) {
-  let { address, privateKey } = await this.getKeys(menmonic)
-
-  let data = { accountNumber, sequence }
-  if (!accountNumber || !sequence) data = await this.getAccountData(mnemonic)
+Drop.prototype.undelegate = async function(params) {
+  params = await this.buildParams(params)
   
-  let params = {
+  let valueParams = {
     amount: {
-      amount: String(amount),
+      amount: String(params.amount),
       denom: "udrop"
     },
-    delegator_address: address,
-    validator_address: validatorAddress
+    delegator_address: params.address,
+    validator_address: params.validatorAddress
   }
 
-  let stdMsg = this.buildStdMsg(TRANS_TYPE.MSG_UNDELEGATE, params, data, memo)
-  const signedTx = sign(stdMsg, privateKey)
+  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_UNDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  const signedTx = sign(stdMsg, params.privateKey)
 
-  if (!broadcast) return signedTx
-  return await this.broadcast(signedTx)
+  return params.broadcast ? await this.broadcast(signedTx) : signedTx
+}
+
+/** 
+ * creates a redelegate transaction & signs offline using provided mnemonic and then 
+ * broadcasts to LCD API (this.url);
+ * optionally pass in accountNumber and sequence for manual override;
+ * optionally pass false into broadcast param to return the signedTx and NOT broadcast
+ */
+Drop.prototype.redelegate = async function(params) {
+  params = await this.buildParams(params)
+  
+  let valueParams = {
+    amount: {
+      amount: String(params.amount),
+      denom: "udrop"
+    },
+    delegator_address: params.address,
+    validator_src_address: params.validatorSourceAddress,
+    validator_dst_address: params.validatorDestAddress
+  }
+
+  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_BEGIN_REDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee === OPTIONAL_PARAM_DEFAULTS.fee ? '2000000' : params.fee, params.gas === OPTIONAL_PARAM_DEFAULTS.gas ? '300000' : params.gas)
+  const signedTx = sign(stdMsg, params.privateKey)
+
+  return params.broadcast ? await this.broadcast(signedTx) : signedTx
+}
+
+// delegatorAddress and amount params is a placeholder to match function signature of other actions
+Drop.prototype.withdrawRewards = async function(params) {
+  params = await this.buildParams(params)
+  
+  const response = await fetch(this.url + `/distribution/delegators/${params.address}/rewards`)
+  const rewards = await response.json()
+
+  if (!rewards.result.rewards.length) throw new Error('no rewards to withdraw')
+
+  let msgs = rewards.result.rewards.map(r => {
+    return {
+      type: MSG_TYPE.MSG_WITHDRAW_DELEGATION_REWARD, 
+      value: { 
+        delegator_address: params.address, 
+        validator_address: r.validator_address
+      }
+    }
+  })
+
+  let stdMsg = this.buildMultiMsg(msgs, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  const signedTx = sign(stdMsg, params.privateKey)
+
+  return params.broadcast ? await this.broadcast(signedTx) : signedTx
+}
+
+// amount param is a placeholder to match function signature of other actions
+Drop.prototype.withdrawAddress = async function(params) {
+  params = await this.buildParams(params)
+  
+  let valueParams = {    
+    delegator_address: params.address,
+    withdraw_address: params.withdrawAddress
+  }
+
+  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_MODIFY_WITHDRAW_ADDRESS, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  const signedTx = sign(stdMsg, params.privateKey)
+
+  return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
 /** 

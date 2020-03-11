@@ -1,6 +1,6 @@
 {
   "name": "@dropilcoin/dropjs",
-  "version": "1.1.1",
+  "version": "1.5.0",
   "description": "An open source JavaScript library for use with Dropil Chain.",
   "main": "./src/drop.js",
   "repository": {
