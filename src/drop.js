@@ -277,30 +277,61 @@ Drop.prototype.broadcast = async function(signedTx) {
 
 // this model shows the potential keys and their expected types inside the params for all of the available transactions
 // note: not all of these parameters will be used for each transaction
-const PARAM_MODEL = {
+const PARAMS_MODEL = {
+  // required for all transactions
   mnemonic: 'String',
+
+  // required for send transaction
   destination: 'String',
+
+  // required for delegate and undelegate transactions
+  validatorAddress: 'String',
+
+  // required for redelegate transaction
   validatorSourceAddress: 'String',
   validatorDestAddress: 'String',
+
+  // required for withdrawRewards transaction
+  withdrawAddress: 'String',
+
+  // required for send, delegate, undelegate, and redelegate transactions
   amount: 'String || Number',
-  memo: 'String',
-  accountNumber: 'String || Number',
-  sequence: 'String || Number',
-  broadcast: 'Boolean',
-  fee: 'String || Number',
-  gas: 'String || Number'
+  
+  // ==== optional parameters below ====
+
+  // adds a memo to any transaction  
+  memo: 'String', // default: ''
+
+  // sets the account number and sequence for the transaction; transactions must be submitted to the network in order by sequence; by default, these are obtained via /auth/accounts/{address} API endpoint before signing each transaction
+  // **special note: if one is provided, BOTH accountNumber and sequence must be provided together, not just one
+  accountNumber: 'String || Number',  // default: obtained via /auth/accounts/{address} API endpoint
+  sequence: 'String || Number', // default: obtained via /auth/accounts/{address} API endpoint
+
+  // dictates whether transaction gets broadcasted or returns signedTx instead for later use  
+  broadcast: 'Boolean', // default: true
+
+  // sets a custom fee on the transaction
+  fee: 'String || Number', // default: 1000000 (1 DROP)
+
+  // sets custom gas limit on transaction
+  gas: 'String || Number', // default: 200000
+
+  // sets the mode of the transaction when broadcasted; possible values are 'block' which waits until the transaction is included in a block, 'sync' which waits for the response from the node, 'async' which returns immediately without waiting for a response
+  mode: 'String' // default: 'sync'
 }
 
 // this model contains the default values for the required parameters of each transaction
-const OPTIONAL_PARAM_DEFAULTS = {
+const PARAMS_DEFAULTS = {
   memo: '',
   broadcast: true,
   fee: '1000000',
-  gas: '200000'
+  gas: '200000',
+  mode: 'sync'
 }
 
+/** merges default params with provided params and then adds any missing params */
 Drop.prototype.buildParams = async function(params) {
-  params = { ...OPTIONAL_PARAM_DEFAULTS, ...params }
+  params = { ...PARAMS_DEFAULTS, ...params }
   if (!params.address || !params.privateKey) params = { ...params, ...(await this.getKeys(params.mnemonic)) }
   if (!params.accountNumber || !params.sequence) params = { ...params, ...(await this.getAccountData(params.mnemonic)) }
 
@@ -328,7 +359,7 @@ Drop.prototype.send = async function(params) {
   }
 
   let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_SEND, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
-  const signedTx = sign(stdMsg, params.privateKey)
+  const signedTx = sign(stdMsg, params.privateKey, params.mode)
     
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
@@ -352,7 +383,7 @@ Drop.prototype.delegate = async function(params) {
   }
 
   let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_DELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
-  const signedTx = sign(stdMsg, params.privateKey)
+  const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
@@ -376,7 +407,7 @@ Drop.prototype.undelegate = async function(params) {
   }
 
   let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_UNDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
-  const signedTx = sign(stdMsg, params.privateKey)
+  const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
@@ -400,13 +431,12 @@ Drop.prototype.redelegate = async function(params) {
     validator_dst_address: params.validatorDestAddress
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_BEGIN_REDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee === OPTIONAL_PARAM_DEFAULTS.fee ? '2000000' : params.fee, params.gas === OPTIONAL_PARAM_DEFAULTS.gas ? '300000' : params.gas)
-  const signedTx = sign(stdMsg, params.privateKey)
+  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_BEGIN_REDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee === PARAMS_DEFAULTS.fee ? '2000000' : params.fee, params.gas === PARAMS_DEFAULTS.gas ? '300000' : params.gas)
+  const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
-// delegatorAddress and amount params is a placeholder to match function signature of other actions
 Drop.prototype.withdrawRewards = async function(params) {
   params = await this.buildParams(params)
   
@@ -426,13 +456,12 @@ Drop.prototype.withdrawRewards = async function(params) {
   })
 
   let stdMsg = this.buildMultiMsg(msgs, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
-  const signedTx = sign(stdMsg, params.privateKey)
+  const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
-// amount param is a placeholder to match function signature of other actions
-Drop.prototype.withdrawAddress = async function(params) {
+Drop.prototype.modifyWithdrawAddress = async function(params) {
   params = await this.buildParams(params)
   
   let valueParams = {    
@@ -441,15 +470,13 @@ Drop.prototype.withdrawAddress = async function(params) {
   }
 
   let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_MODIFY_WITHDRAW_ADDRESS, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
-  const signedTx = sign(stdMsg, params.privateKey)
+  const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
-/** 
- * only export the start & generateWallet functions because all other
- * functions should be invoked using the variable created when calling dropjs.create()
- */
+// only export the start, generateMnemonic, and generateWallet functions because all other
+// functions should be invoked using the variable created when calling dropjs.create()
 module.exports = {
   start,
   generateMnemonic,
