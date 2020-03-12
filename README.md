@@ -110,7 +110,7 @@ const PARAMS_MODEL = {
   validatorSourceAddress: 'String',
   validatorDestAddress: 'String',
 
-  // required for withdrawRewards transaction
+  // required for modifyWithdrawAddress transaction
   withdrawAddress: 'String',
 
   // required for send, delegate, undelegate, and redelegate transactions
@@ -132,7 +132,7 @@ const PARAMS_MODEL = {
   // dictates whether transaction gets broadcasted or returns signedTx instead for later use  
   broadcast: 'Boolean', // default: true
 
-  // sets a custom fee on the transaction
+  // sets a custom fee in `udrop` on the transaction
   fee: 'String || Number', // default: 1000000 (1 DROP)
 
   // sets custom gas limit on transaction
