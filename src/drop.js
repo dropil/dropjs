@@ -7,9 +7,7 @@ const crypto = require('crypto')
 const bitcoinjs = require('bitcoinjs-lib')
 const CryptoJS = require("crypto-js")
 
-const DROP_PATH = "m/44'/118'/0'/0/0"
-const DROP_BECH32_PREFIX = 'drop'
-const MSG_TYPE = {
+const DEFAULT_MSG_TYPES = {
   MSG_SEND: 'cosmos-sdk/MsgSend',
   MSG_MULTI_SEND: 'cosmos-sdk/MsgMultiSend',
   MSG_CREATE_VALIDATOR: 'cosmos-sdk/MsgCreateValidator',
@@ -26,36 +24,46 @@ const MSG_TYPE = {
   MSG_UNJAIL: 'cosmos-sdk/MsgUnjail'
 }
 
-/** creates a Drop instance to utilize functions on Dropil Chain */
-let Drop = function(lcdUrl, chainId) {
-  this.url = lcdUrl
-	this.chainId = chainId
-	this.path = DROP_PATH
-	this.bech32MainPrefix = DROP_BECH32_PREFIX
+const MSG_TYPE = {
+  'dropilchain-testnet': { ...DEFAULT_MSG_TYPES },
+  'cosmoshub-3': { ...DEFAULT_MSG_TYPES }
 }
 
-/** returns a new Drop instance to utilize functions on Dropil Chain */
-function start(lcdUrl = 'https://testnet-api.dropilchain.com', chainId = 'dropilchain-testnet') {
-  return new Drop(lcdUrl, chainId)
+/** creates a Drop instance to utilize functions on a Cosmos-SDK based blockchain */
+let Drop = function(params) {  
+  this.chainId = params.chainId
+  this.url = params.lcdUrl
+	this.hdPath = params.hdPath
+  this.bech32Prefix = params.bech32Prefix
+  this.denom = params.denom
+  this.powerReduction = params.powerReduction
+  this.baseFee = params.baseFee
+  this.baseGas = params.baseGas
 }
 
-/** generates a random mnemonic for use in wallet generation */
-function generateMnemonic() {
-  let randomBytes = Buffer.from(CryptoJS.lib.WordArray.random(32).toString(), `hex`)
-  if (randomBytes.length !== 32) throw Error(`Entropy has incorrect length`)
-  
-  return bip39.entropyToMnemonic(randomBytes.toString(`hex`))
+const START_PARAMS_MODEL = {
+  chainId: 'String', // ex: "dropilchain-testnet"
+  lcdUrl: 'String', // ex: "https://testnet-api.dropilchain.com"
+  hdPath: 'String', // ex: "m/44'/118'/0'/0/0"
+  bech32Prefix: 'String', // ex: "drop"
+  denom: 'String', // ex: "udrop"
+  powerReduction: 'int', // ex: 1000000
+  baseFee: 'String', // ex: "1000000" expressed in denom
+  baseGas: 'String', // ex: "200000"
 }
 
-/** generates a new wallet and returns { address, mnemonic } */
-async function generateWallet() {
-  let mnemonic = generateMnemonic()
-  let seed = await bip39.mnemonicToSeed(mnemonic)
-  let bipInterface = bip32.fromSeed(seed)
-  let bipPath = bipInterface.derivePath(DROP_PATH)
-  let words = bech32.toWords(bipPath.identifier)
-  let address = bech32.encode(DROP_BECH32_PREFIX, words)
-  return { address, mnemonic }
+/** returns a new Drop instance to utilize functions on designated params.chainId */
+function start(params) {
+  if (!params.chainId) throw new Error('param "chainId" missing')
+  if (!params.lcdUrl) throw new Error('param "lcdUrl" missing')
+  if (!params.hdPath) throw new Error('param "hdPath" missing')
+  if (!params.bech32Prefix) throw new Error('param "bech32Prefix" missing')
+  if (!params.denom) throw new Error('param "denom" missing')
+  if (!params.powerReduction) throw new Error('param "powerReduction" missing')
+  if (!params.baseFee) throw new Error('param "baseFee" missing')
+  if (!params.baseGas) throw new Error('param "baseGas" missing')  
+
+  return new Drop(params)
 }
 
 function convertStringToBytes(str) {
@@ -87,6 +95,25 @@ function sortObject(obj) {
   })
   
 	return result
+}
+
+/** generates a random mnemonic for use in wallet generation */
+function generateMnemonic() {
+  let randomBytes = Buffer.from(CryptoJS.lib.WordArray.random(32).toString(), `hex`)
+  if (randomBytes.length !== 32) throw Error(`Entropy has incorrect length`)
+  
+  return bip39.entropyToMnemonic(randomBytes.toString(`hex`))
+}
+
+/** generates a new wallet and returns { address, mnemonic } */
+Drop.prototype.generateWallet = async function() {
+  let mnemonic = generateMnemonic()
+  let seed = await bip39.mnemonicToSeed(mnemonic)
+  let bipInterface = bip32.fromSeed(seed)
+  let bipPath = bipInterface.derivePath(this.hdPath)
+  let words = bech32.toWords(bipPath.identifier)
+  let address = bech32.encode(this.bech32Prefix, words)
+  return { address, mnemonic }
 }
 
 /** returns response from LCD API (this.url) on /auth/accounts/{address} endpoint */
@@ -141,11 +168,11 @@ Drop.prototype.getKeys = async function(mnemonic) {
 
 	const seed = await bip39.mnemonicToSeed(mnemonic)
 	const bipInterface = bip32.fromSeed(seed)
-	const bipPath = bipInterface.derivePath(this.path)
+	const bipPath = bipInterface.derivePath(this.hdPath)
   
   // address
   const words = bech32.toWords(bipPath.identifier)
-  const address = bech32.encode(this.bech32MainPrefix, words)
+  const address = bech32.encode(this.bech32Prefix, words)
 
   // private key
   const ecpair = bitcoinjs.ECPair.fromPrivateKey(bipPath.privateKey, { compressed : false })
@@ -161,9 +188,9 @@ Drop.prototype.getAddress = async function(mnemonic) {
 
 	const seed = await bip39.mnemonicToSeed(mnemonic)
 	const bipInterface = bip32.fromSeed(seed)
-	const bipPath = bipInterface.derivePath(this.path)
+	const bipPath = bipInterface.derivePath(this.hdPath)
   const words = bech32.toWords(bipPath.identifier)
-  const address = bech32.encode(this.bech32MainPrefix, words)
+  const address = bech32.encode(this.bech32Prefix, words)
 
 	return address
 }
@@ -175,23 +202,23 @@ Drop.prototype.getPrivateKey = async function(mnemonic) {
 
 	const seed = await bip39.mnemonicToSeed(mnemonic)
 	const bipInterface = bip32.fromSeed(seed)
-	const bipPath = bipInterface.derivePath(this.path)
+	const bipPath = bipInterface.derivePath(this.hdPath)
   const ecpair = bitcoinjs.ECPair.fromPrivateKey(bipPath.privateKey, { compressed : false })
   
 	return ecpair.privateKey
 }
 
-/** returns udrop balance of provided address; set convert to true to return in DROP decimal format */
+/** returns denom balance of provided address; set convert to true to return params.powerReduction format */
 Drop.prototype.getAvailableBalance = async function(address, convert = false) {
   let data = await this.getAccount(address)
 
-  // return 0 if error or udrop does not exist
+  // return 0 if error or denom does not exist
   if (!data.result || !data.result.value.coins.length || 
-    !data.result.value.coins.filter(c => c.denom === 'udrop').length) return '0'
+    !data.result.value.coins.filter(c => c.denom === this.denom).length) return '0'
 
-  let balance = data.result.value.coins.filter(c => c.denom === 'udrop')[0].amount
+  let balance = data.result.value.coins.filter(c => c.denom === this.denom)[0].amount
 
-  return convert ? String(parseFloat(balance) / 1000000.0) : balance
+  return convert ? String(parseFloat(balance) / powerReduction) : balance
 }
 
 /** returns a stdMsg based on the input json */
@@ -202,7 +229,10 @@ function newStdMsg(input) {
   }
 }
 
-Drop.prototype.buildStdMsg = function(type, valueParams, accountNumber, sequence, memo = '', fee = 1000000, gas = 200000) {
+Drop.prototype.buildStdMsg = function(type, valueParams, accountNumber, sequence, memo = '', fee = null, gas = null) {
+  if (!fee) fee = this.baseFee
+  if (!gas) gas = this.baseGas
+
   return newStdMsg({
     msgs: [
       {
@@ -211,18 +241,21 @@ Drop.prototype.buildStdMsg = function(type, valueParams, accountNumber, sequence
       }
     ],
     chain_id: this.chainId,
-    fee: { amount: [ { amount: String(fee), denom: "udrop" } ], gas: String(gas) },
+    fee: { amount: [ { amount: String(fee), denom: this.denom } ], gas: String(gas) },
     memo,
     account_number: String(accountNumber),
     sequence: String(sequence)
   })
 }
 
-Drop.prototype.buildMultiMsg = function(msgs, accountNumber, sequence, memo = '', fee = 1000000, gas = 200000) {
+Drop.prototype.buildMultiMsg = function(msgs, accountNumber, sequence, memo = '', fee = null, gas = null) {
+  if (!fee) fee = this.baseFee
+  if (!gas) gas = this.baseGas
+
   return newStdMsg({
     msgs,
     chain_id: this.chainId,
-    fee: { amount: [ { amount: String(fee), denom: "udrop" } ], gas: String(gas) },
+    fee: { amount: [ { amount: String(fee), denom: this.denom } ], gas: String(gas) },
     memo,
     account_number: String(accountNumber),
     sequence: String(sequence)
@@ -311,10 +344,10 @@ const PARAMS_MODEL = {
   broadcast: 'Boolean', // default: true
 
   // sets a custom fee on the transaction
-  fee: 'String || Number', // default: 1000000 (1 DROP)
+  fee: 'String || Number', // default: set in .start() params || 1000000 (1 DROP)
 
   // sets custom gas limit on transaction
-  gas: 'String || Number', // default: 200000
+  gas: 'String || Number', // default: set in .start() params || 200000
 
   // sets the mode of the transaction when broadcasted; possible values are 'block' which waits until the transaction is included in a block, 'sync' which waits for the response from the node, 'async' which returns immediately without waiting for a response
   mode: 'String' // default: 'sync'
@@ -323,9 +356,7 @@ const PARAMS_MODEL = {
 // this model contains the default values for the required parameters of each transaction
 const PARAMS_DEFAULTS = {
   memo: '',
-  broadcast: true,
-  fee: '1000000',
-  gas: '200000',
+  broadcast: true,  
   mode: 'sync'
 }
 
@@ -351,14 +382,14 @@ Drop.prototype.send = async function(params) {
     amount: [
       {
         amount: String(params.amount),
-        denom: "udrop"
+        denom: this.denom
       }
     ],
     from_address: params.address,
     to_address: params.destination
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_SEND, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_SEND, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
     
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
@@ -376,13 +407,13 @@ Drop.prototype.delegate = async function(params) {
   let valueParams = {
     amount: {
       amount: String(params.amount),
-      denom: "udrop"
+      denom: this.denom
     },
     delegator_address: params.address,
     validator_address: params.validatorAddress
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_DELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_DELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
@@ -400,13 +431,13 @@ Drop.prototype.undelegate = async function(params) {
   let valueParams = {
     amount: {
       amount: String(params.amount),
-      denom: "udrop"
+      denom: this.denom
     },
     delegator_address: params.address,
     validator_address: params.validatorAddress
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_UNDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_UNDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
@@ -424,14 +455,14 @@ Drop.prototype.redelegate = async function(params) {
   let valueParams = {
     amount: {
       amount: String(params.amount),
-      denom: "udrop"
+      denom: this.denom
     },
     delegator_address: params.address,
     validator_src_address: params.validatorSourceAddress,
     validator_dst_address: params.validatorDestAddress
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_BEGIN_REDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee === PARAMS_DEFAULTS.fee ? '2000000' : params.fee, params.gas === PARAMS_DEFAULTS.gas ? '300000' : params.gas)
+  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_BEGIN_REDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee === PARAMS_DEFAULTS.fee ? '2000000' : params.fee, params.gas === PARAMS_DEFAULTS.gas ? '300000' : params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
@@ -447,7 +478,7 @@ Drop.prototype.withdrawRewards = async function(params) {
 
   let msgs = rewards.result.rewards.map(r => {
     return {
-      type: MSG_TYPE.MSG_WITHDRAW_DELEGATION_REWARD, 
+      type: MSG_TYPE[this.chainId].MSG_WITHDRAW_DELEGATION_REWARD, 
       value: { 
         delegator_address: params.address, 
         validator_address: r.validator_address
@@ -469,16 +500,15 @@ Drop.prototype.modifyWithdrawAddress = async function(params) {
     withdraw_address: params.withdrawAddress
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE.MSG_MODIFY_WITHDRAW_ADDRESS, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_MODIFY_WITHDRAW_ADDRESS, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
-// only export the start, generateMnemonic, and generateWallet functions because all other
-// functions should be invoked using the variable created when calling dropjs.create()
+// only export the start and generateMnemonic functions because all other
+// functions should be invoked using the variable created when calling dropjs.start()
 module.exports = {
   start,
-  generateMnemonic,
-  generateWallet
+  generateMnemonic  
 }

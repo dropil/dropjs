@@ -1,9 +1,8 @@
 # DropJS - Dropil Chain JavaScript Library
 
-An open source JavaScript library for use with Dropil Chain.
+An open source JavaScript library for use with Dropil Chain or ***any*** other Cosmos-SDK based chain.
 
-The DropJS library offers the ability to create wallets, create transactions, sign transactions offline, and broadcast
-transactions to a desired RPC URL.
+The DropJS library offers the ability to create wallets, create transactions, sign transactions offline, and broadcast transactions to a desired LCD URL for any Cosmos-SDK based chain.
 
 ## Installation
 
@@ -25,7 +24,7 @@ yarn add @dropilcoin/dropjs
 
 Import dropjs in NodeJS by placing the following line at the top of your JS file.
 ``` js
-const dropjs = require("@dropilcoin/dropjs");
+const dropjs = require("@dropilcoin/dropjs")
 ```
 
 ### Browser
@@ -41,24 +40,50 @@ Before starting, ensure you have imported the dropjs library (see above).
 
 If you are unfamiliar with any of the terminology or about how Dropil Chain functions in general, refer to the [Dropil Chain Documentation](https://docs.dropilchain.com/info)
 
-### Create a dropjs instance
+### Create a `Drop` instance
 
-Create a new Drop instance by calling the `start` function of dropjs. **The `drop` variable will be referred to throughout this documentation.** Pass in a valid LCD API URL and chainId as parameters. You can pass in `http://localhost:1317` or whatever LCD URL you setup if you are running a full node on your local machine. If you omit these parameters, they will default to the values shown below. The Dropil Chain mainnet chain-id is `Dropil-Chain-Thor`.
+Create a new Drop instance by calling the `start` function of dropjs. **The `drop` variable will be referred to throughout this documentation.** Pass in a params object with valid parameters as outlined below.
 
 ``` js
-let drop = dropjs.start(lcdUrl, chainId)
-// for example dropjs.start('https://api-dropilchain.com', 'Dropil-Chain-Thor')
+const dropjs = require("@dropilcoin/dropjs")
+
+let startParams = {
+  chainId: 'dropilchain-testnet', // String
+  lcdUrl: 'https://testnet-api.dropilchain.com', // String
+  hdPath: "m/44'/118'/0'/0/0", // String
+  bech32Prefix: 'drop', // String
+  denom: 'udrop', // String
+  powerReduction: 1000000, // int
+  baseFee: '1000000', // String
+  baseGas: '200000', // String
+}
+
+let drop = dropjs.start(startParams)
 ```
 
-### Create new wallet
+### Generate Mnemonic Phrase
 
-Create a new Dropil Chain wallet by calling the async `generateWallet` function of dropjs.
+Create a new mnemonic phrase by calling the `generateMnemonic` function of dropjs.
 
 ``` js
-let wallet = await dropjs.generateWallet()
+const dropjs = require("@dropilcoin/dropjs");
+let wallet = dropjs.generateMnemonic()
+```
+
+Returns a 24-word mnemonic phrase as a `String`.
+
+### Create New Wallet
+
+Create a new wallet using the initialized bech32Prefix by calling the async `generateWallet` function.
+
+``` js
+const dropjs = require("@dropilcoin/dropjs")
+let drop = dropjs.start(startParams)
+let wallet = await drop.generateWallet()
 ```
 
 Returns:
+
 ``` json
 {
   "address": "String",
@@ -66,18 +91,16 @@ Returns:
 }
 ```
 
-Alternatively, if you only want to generate a mnemonic and do not care about the address, you can call `generateMnemonic` which returns a mnemonic as a `String`.
+::: warning
+The remaining examples in these docs will not import dropjs or call the `start` method of dropjs.
+:::
+
+### Get Balance of Address
+
+Call the async `getAvailableBalance` function to retrieve the **available** balance of an address. By default, this function returns a `denom` (i.e. udrop or uatom) value. Pass an optional second parameter of `true` to return the value represented in the coin value instead of the denom value.
 
 ``` js
-let mnemonic = dropjs.generateMnemonic()
-```
-
-### Get balance of address
-
-Call the async `getAvailableBalance` function to retrieve the **available** balance of an address. By default, this function returns a `udrop` value (1000000 udrop = 1 DROP). Pass an optional second parameter of `true` to return the value represented in DROP.
-
-``` js
-// balance of drop1qs6a7ht3t2784dn9ee89nv262726v56hks3k5u is 123456789 udrop
+// example balance of drop1qs6a7ht3t2784dn9ee89nv262726v56hks3k5u is 123456789 udrop and the powerReduction of DROP is 1000000
 
 // returns '123456789' udrop
 let balanceUdrop = await drop.getAvailableBalance('drop1qs6a7ht3t2784dn9ee89nv262726v56hks3k5u')
