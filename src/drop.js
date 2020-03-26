@@ -25,7 +25,7 @@ const DEFAULT_MSG_TYPES = {
 }
 
 const MSG_TYPE = {
-  'dropilchain-testnet': { ...DEFAULT_MSG_TYPES },
+  'Dropil-Chain-Poseidon': { ...DEFAULT_MSG_TYPES },
   'cosmoshub-3': { ...DEFAULT_MSG_TYPES }
 }
 
@@ -218,7 +218,7 @@ Drop.prototype.getAvailableBalance = async function(address, convert = false) {
 
   let balance = data.result.value.coins.filter(c => c.denom === this.denom)[0].amount
 
-  return convert ? String(parseFloat(balance) / powerReduction) : balance
+  return convert ? String(parseFloat(balance) / this.powerReduction) : balance
 }
 
 /** returns a stdMsg based on the input json */
@@ -501,6 +501,47 @@ Drop.prototype.modifyWithdrawAddress = async function(params) {
   }
 
   let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_MODIFY_WITHDRAW_ADDRESS, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  const signedTx = sign(stdMsg, params.privateKey, params.mode)
+
+  return params.broadcast ? await this.broadcast(signedTx) : signedTx
+}
+
+Drop.prototype.submitProposal = async function(params) {
+  params = await this.buildParams(params)
+  
+  let valueParams = {
+    content: {
+      type: "cosmos-sdk/TextProposal",
+      value: {
+        title: params.title,
+        description: params.description
+      }      
+    }, 
+    initial_deposit: [
+      {
+        amount: String(params.amount),
+        denom: this.denom
+      }
+    ],
+    proposer: params.address
+  }
+
+  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_SUBMIT_PROPOSAL, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  const signedTx = sign(stdMsg, params.privateKey, params.mode)
+
+  return params.broadcast ? await this.broadcast(signedTx) : signedTx
+}
+
+Drop.prototype.vote = async function(params) {
+  params = await this.buildParams(params)
+  
+  let valueParams = {
+    option: params.option,
+    proposal_id: params.proposal_id,
+    voter: params.address
+  }
+
+  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_VOTE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
