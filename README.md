@@ -111,7 +111,7 @@ let balanceDrop = await drop.getAvailableBalance('drop1qs6a7ht3t2784dn9ee89nv262
 
 ## Transactions
 
-This section will outline how to send transactions using DropJS. The current supported transaction types are `send`, `delegate`, `undelegate`, `redelegate`, `withdrawRewards`, and `modifyWithdrawAddress`.
+This section will outline how to send transactions using DropJS. The current supported transaction types are `send`, `delegate`, `undelegate`, `redelegate`, `withdrawRewards`, and `modifyWithdrawAddress`, `submitProposal`, `vote`.
 
 ### The Params Object
 
@@ -248,9 +248,10 @@ Refer to the [Params Object](#the-params-object) for more advanced use.
 
 ### Modify Withdraw Address
 
-You may modify the withdraw address that rewards are sent to when calling the `withdrawRewards` function using the `modifyWithdrawAddress` function. By default, the address is the address associated with your mnemonic.
+You may modify the withdraw address that rewards are sent to when calling the `withdrawRewards` function by using the `modifyWithdrawAddress` function. By default, the address is the address associated with your mnemonic.
 
 ``` js
+// the following mnemonic was generated for the purpose of this example and does not contain a balance
 let mnemonic = 'exit cross gate coconut knee border dial hat upset empower draft glide maple rain erode polar pyramid ketchup seat bone excess fault once length'
 
 let params = {
@@ -258,10 +259,47 @@ let params = {
   withdrawAddress: 'drop18w3regg6gd9wwmz582x9znmt5jqdydltjhh8cf'
 }
 
-let redelegateResponse = await drop.redelegate(params)
+let response = await drop.modifyWithdrawAddress(params)
 ```
 
 Refer to the [Params Object](#the-params-object) for more advanced use.
+
+### Submit Proposal
+
+You may submit a proposal using the `submitProposal` function. Proposals submitted are `Text` proposals and require a title, description, and an initial deposit amount. Proposals require a minimum deposit amount to be considered valid proposals. Read about this in the respective chain docs.
+
+``` js
+// the following mnemonic was generated for the purpose of this example and does not contain a balance
+let mnemonic = 'exit cross gate coconut knee border dial hat upset empower draft glide maple rain erode polar pyramid ketchup seat bone excess fault once length'
+
+let params = {
+  mnemonic,
+  title: 'Example Proposal Title',
+  description: 'Example Proposal Description', // use "\n" to depict linebreaks
+  amount: 30000000000 // this is the initial deposit made to the proposal
+}
+
+let response = await drop.submitProposal(params)
+```
+
+Refer to the [Params Object](#the-params-object) for more advanced use.
+
+### Vote on Proposal
+
+Vote on a proposal that is currently in the voting period by using the `vote` function.
+
+``` js
+// the following mnemonic was generated for the purpose of this example and does not contain a balance
+let mnemonic = 'exit cross gate coconut knee border dial hat upset empower draft glide maple rain erode polar pyramid ketchup seat bone excess fault once length'
+
+let params = {
+  mnemonic,
+  proposal_id: '1',
+  option: 'Yes' // Options are 'Yes', 'No', 'NoWithVeto', 'Abstain'  
+}
+
+let response = await drop.vote(params)
+```
 
 ## Advanced Use
 
