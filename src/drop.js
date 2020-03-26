@@ -25,8 +25,9 @@ const DEFAULT_MSG_TYPES = {
 }
 
 const MSG_TYPE = {
-  'Dropil-Chain-Poseidon': { ...DEFAULT_MSG_TYPES },
-  'cosmoshub-3': { ...DEFAULT_MSG_TYPES }
+  'Dropil-Chain-Poseidon': { ...DEFAULT_MSG_TYPES }, // Dropil Chain Testnet
+  'Dropil-Chain-Zeus': { ...DEFAULT_MSG_TYPES }, // Dropil Chain Mainnet
+  'cosmoshub-3': { ...DEFAULT_MSG_TYPES } // Cosmos Hub Mainnet
 }
 
 /** creates a Drop instance to utilize functions on a Cosmos-SDK based blockchain */
@@ -42,13 +43,13 @@ let Drop = function(params) {
 }
 
 const START_PARAMS_MODEL = {
-  chainId: 'String', // ex: "dropilchain-testnet"
+  chainId: 'String', // ex: "Dropil-Chain-Poseidon"
   lcdUrl: 'String', // ex: "https://testnet-api.dropilchain.com"
-  hdPath: 'String', // ex: "m/44'/118'/0'/0/0"
+  hdPath: 'String', // ex: "m/44'/495'/0'/0/0"
   bech32Prefix: 'String', // ex: "drop"
   denom: 'String', // ex: "udrop"
   powerReduction: 'int', // ex: 1000000
-  baseFee: 'String', // ex: "1000000" expressed in denom
+  baseFee: 'String', // ex: "10000" expressed in denom
   baseGas: 'String', // ex: "200000"
 }
 
@@ -208,7 +209,7 @@ Drop.prototype.getPrivateKey = async function(mnemonic) {
 	return ecpair.privateKey
 }
 
-/** returns denom balance of provided address; set convert to true to return params.powerReduction format */
+/** returns denom balance of provided address; set convert to true to return divided params.powerReduction format */
 Drop.prototype.getAvailableBalance = async function(address, convert = false) {
   let data = await this.getAccount(address)
 
@@ -229,6 +230,7 @@ function newStdMsg(input) {
   }
 }
 
+// build standard message with single message
 Drop.prototype.buildStdMsg = function(type, valueParams, accountNumber, sequence, memo = '', fee = null, gas = null) {
   if (!fee) fee = this.baseFee
   if (!gas) gas = this.baseGas
@@ -248,6 +250,7 @@ Drop.prototype.buildStdMsg = function(type, valueParams, accountNumber, sequence
   })
 }
 
+// build standard message with multiple messages
 Drop.prototype.buildMultiMsg = function(msgs, accountNumber, sequence, memo = '', fee = null, gas = null) {
   if (!fee) fee = this.baseFee
   if (!gas) gas = this.baseGas
@@ -262,7 +265,7 @@ Drop.prototype.buildMultiMsg = function(msgs, accountNumber, sequence, memo = ''
   })
 }
 
-/** signs a transaction offline using provided privateKey */
+/** sign transaction offline using provided privateKey */
 function sign(stdMsg, privateKey, modeType = "sync") {
   // Mode types: 
   // "block" (return after tx commit)
@@ -295,7 +298,7 @@ function sign(stdMsg, privateKey, modeType = "sync") {
   }
 }
 
-/** broadcasts signed transaction to LCD API (this.url) */
+/** broadcast signed transaction to LCD API (this.url) */
 Drop.prototype.broadcast = async function(signedTx) {
 	const response = await fetch(this.url + "/txs", {
     method: 'POST',
@@ -311,7 +314,7 @@ Drop.prototype.broadcast = async function(signedTx) {
 // this model shows the potential keys and their expected types inside the params for all of the available transactions
 // note: not all of these parameters will be used for each transaction
 const PARAMS_MODEL = {
-  // required for all transactions
+  // required for ALL transactions
   mnemonic: 'String',
 
   // required for send transaction
@@ -324,18 +327,28 @@ const PARAMS_MODEL = {
   validatorSourceAddress: 'String',
   validatorDestAddress: 'String',
 
-  // required for withdrawRewards transaction
+  // required for modifyWithdrawAddress transaction
   withdrawAddress: 'String',
 
-  // required for send, delegate, undelegate, and redelegate transactions
+  // required for send, delegate, undelegate, redelegate, and submitProposal transactions
   amount: 'String || Number',
+
+  // required for submitProposal transaction
+  title: 'String',
+  description: 'String',
+
+  // required for vote transaction
+  proposal_id: 'String || Number',
+  option: 'String', // Options 'Yes', 'No', 'NoWithVeto', 'Abstain'
   
   // ==== optional parameters below ====
 
   // adds a memo to any transaction  
   memo: 'String', // default: ''
 
-  // sets the account number and sequence for the transaction; transactions must be submitted to the network in order by sequence; by default, these are obtained via /auth/accounts/{address} API endpoint before signing each transaction
+  // sets the account number and sequence for the transaction; 
+  // transactions must be submitted to the network in order by sequence; by default, 
+  // these are obtained via /auth/accounts/{address} API endpoint before signing each transaction
   // **special note: if one is provided, BOTH accountNumber and sequence must be provided together, not just one
   accountNumber: 'String || Number',  // default: obtained via /auth/accounts/{address} API endpoint
   sequence: 'String || Number', // default: obtained via /auth/accounts/{address} API endpoint
@@ -369,12 +382,7 @@ Drop.prototype.buildParams = async function(params) {
   return params
 }
 
-/** 
- * creates a send transaction & signs offline using provided mnemonic and then 
- * broadcasts to LCD API (this.url);
- * optionally pass in accountNumber and sequence for manual override;
- * optionally pass false into broadcast param to return the signedTx and NOT broadcast
- */
+/** transfer coins to destination address */
 Drop.prototype.send = async function(params) {
   params = await this.buildParams(params)
 
@@ -395,12 +403,7 @@ Drop.prototype.send = async function(params) {
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
-/** 
- * creates a delegate transaction & signs offline using provided mnemonic and then 
- * broadcasts to LCD API (this.url);
- * optionally pass in accountNumber and sequence for manual override;
- * optionally pass false into broadcast param to return the signedTx and NOT broadcast
- */
+/** delegate to a validator */
 Drop.prototype.delegate = async function(params) {
   params = await this.buildParams(params)
   
@@ -419,12 +422,7 @@ Drop.prototype.delegate = async function(params) {
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
-/** 
- * creates an undelegate transaction & signs offline using provided mnemonic and then 
- * broadcasts to LCD API (this.url);
- * optionally pass in accountNumber and sequence for manual override;
- * optionally pass false into broadcast param to return the signedTx and NOT broadcast
- */
+/** undelegate from a validator */
 Drop.prototype.undelegate = async function(params) {
   params = await this.buildParams(params)
   
@@ -443,12 +441,7 @@ Drop.prototype.undelegate = async function(params) {
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
-/** 
- * creates a redelegate transaction & signs offline using provided mnemonic and then 
- * broadcasts to LCD API (this.url);
- * optionally pass in accountNumber and sequence for manual override;
- * optionally pass false into broadcast param to return the signedTx and NOT broadcast
- */
+/** transfer delegation between existing and new validator */
 Drop.prototype.redelegate = async function(params) {
   params = await this.buildParams(params)
   
@@ -468,6 +461,7 @@ Drop.prototype.redelegate = async function(params) {
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
+/** withdraws rewards from all bonded delegations*/
 Drop.prototype.withdrawRewards = async function(params) {
   params = await this.buildParams(params)
   
@@ -492,6 +486,7 @@ Drop.prototype.withdrawRewards = async function(params) {
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
+/** modify destination address for when calling the withdrawRewards function */
 Drop.prototype.modifyWithdrawAddress = async function(params) {
   params = await this.buildParams(params)
   
@@ -506,6 +501,7 @@ Drop.prototype.modifyWithdrawAddress = async function(params) {
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
+/** submit governance proposal */
 Drop.prototype.submitProposal = async function(params) {
   params = await this.buildParams(params)
   
@@ -532,6 +528,7 @@ Drop.prototype.submitProposal = async function(params) {
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
 }
 
+/** vote on governance proposal */
 Drop.prototype.vote = async function(params) {
   params = await this.buildParams(params)
   
