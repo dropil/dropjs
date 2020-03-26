@@ -48,13 +48,13 @@ Create a new Drop instance by calling the `start` function of dropjs. **The `dro
 const dropjs = require("@dropilcoin/dropjs")
 
 let startParams = {
-  chainId: 'dropilchain-testnet', // String
+  chainId: 'Dropil-Chain-Poseidon', // String
   lcdUrl: 'https://testnet-api.dropilchain.com', // String
-  hdPath: "m/44'/118'/0'/0/0", // String
+  hdPath: "m/44'/495'/0'/0/0", // String
   bech32Prefix: 'drop', // String
   denom: 'udrop', // String
   powerReduction: 1000000, // int
-  baseFee: '1000000', // String
+  baseFee: '10000', // String
   baseGas: '200000', // String
 }
 
