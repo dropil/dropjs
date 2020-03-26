@@ -1,8 +1,8 @@
 # DropJS - Dropil Chain JavaScript Library
 
-An open source JavaScript library for use with Dropil Chain or ***any*** other Cosmos-SDK based chain.
+An open source JavaScript library for use with Dropil Chain and supported Cosmos-SDK based chains.
 
-The DropJS library offers the ability to create wallets, create transactions, sign transactions offline, and broadcast transactions to a desired LCD URL for any Cosmos-SDK based chain.
+The DropJS library offers the ability to create wallets, create transactions, sign transactions offline, and broadcast transactions to a desired LCD URL for any supported Cosmos-SDK based chain.
 
 ## Installation
 
