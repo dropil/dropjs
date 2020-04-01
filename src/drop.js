@@ -24,10 +24,10 @@ const DEFAULT_MSG_TYPES = {
   MSG_UNJAIL: 'cosmos-sdk/MsgUnjail'
 }
 
-const MSG_TYPE = {
+const MSG_TYPES = {
   'Dropil-Chain-Poseidon': { ...DEFAULT_MSG_TYPES }, // Dropil Chain Testnet
   'Dropil-Chain-Zeus': { ...DEFAULT_MSG_TYPES }, // Dropil Chain Mainnet
-  'cosmoshub-3': { ...DEFAULT_MSG_TYPES } // Cosmos Hub Mainnet
+  'cosmoshub-3': { ...DEFAULT_MSG_TYPES }  // Cosmos Hub Mainnet  
 }
 
 /** creates a Drop instance to utilize functions on a Cosmos-SDK based blockchain */
@@ -222,6 +222,13 @@ Drop.prototype.getAvailableBalance = async function(address, convert = false) {
   return convert ? String(parseFloat(balance) / this.powerReduction) : balance
 }
 
+function getMsgType(chainId) {
+  console.log({chainId})
+  console.log({boo: chainId in MSG_TYPES})
+  console.log({msgTypes: MSG_TYPES[chainId]})
+  return chainId in MSG_TYPES ? MSG_TYPES[chainId] : { ...DEFAULT_MSG_TYPES }  
+}
+
 /** returns a stdMsg based on the input json */
 function newStdMsg(input) {
 	return {
@@ -397,7 +404,7 @@ Drop.prototype.send = async function(params) {
     to_address: params.destination
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_SEND, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  let stdMsg = this.buildStdMsg(getMsgType(this.chainId).MSG_SEND, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
     
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
@@ -416,7 +423,7 @@ Drop.prototype.delegate = async function(params) {
     validator_address: params.validatorAddress
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_DELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  let stdMsg = this.buildStdMsg(getMsgType(this.chainId).MSG_DELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
@@ -435,7 +442,7 @@ Drop.prototype.undelegate = async function(params) {
     validator_address: params.validatorAddress
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_UNDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  let stdMsg = this.buildStdMsg(getMsgType(this.chainId).MSG_UNDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
@@ -455,7 +462,7 @@ Drop.prototype.redelegate = async function(params) {
     validator_dst_address: params.validatorDestAddress
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_BEGIN_REDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee === PARAMS_DEFAULTS.fee ? '2000000' : params.fee, params.gas === PARAMS_DEFAULTS.gas ? '300000' : params.gas)
+  let stdMsg = this.buildStdMsg(getMsgType(this.chainId).MSG_BEGIN_REDELEGATE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee === PARAMS_DEFAULTS.fee ? '2000000' : params.fee, params.gas === PARAMS_DEFAULTS.gas ? '300000' : params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
@@ -472,7 +479,7 @@ Drop.prototype.withdrawRewards = async function(params) {
 
   let msgs = rewards.result.rewards.map(r => {
     return {
-      type: MSG_TYPE[this.chainId].MSG_WITHDRAW_DELEGATION_REWARD, 
+      type: getMsgType(this.chainId).MSG_WITHDRAW_DELEGATION_REWARD, 
       value: { 
         delegator_address: params.address, 
         validator_address: r.validator_address
@@ -495,7 +502,7 @@ Drop.prototype.modifyWithdrawAddress = async function(params) {
     withdraw_address: params.withdrawAddress
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_MODIFY_WITHDRAW_ADDRESS, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  let stdMsg = this.buildStdMsg(getMsgType(this.chainId).MSG_MODIFY_WITHDRAW_ADDRESS, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
@@ -522,7 +529,7 @@ Drop.prototype.submitProposal = async function(params) {
     proposer: params.address
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_SUBMIT_PROPOSAL, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  let stdMsg = this.buildStdMsg(getMsgType(this.chainId).MSG_SUBMIT_PROPOSAL, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
@@ -538,7 +545,7 @@ Drop.prototype.vote = async function(params) {
     voter: params.address
   }
 
-  let stdMsg = this.buildStdMsg(MSG_TYPE[this.chainId].MSG_VOTE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
+  let stdMsg = this.buildStdMsg(getMsgType(this.chainId).MSG_VOTE, valueParams, params.accountNumber, params.sequence, params.memo, params.fee, params.gas)
   const signedTx = sign(stdMsg, params.privateKey, params.mode)
 
   return params.broadcast ? await this.broadcast(signedTx) : signedTx
